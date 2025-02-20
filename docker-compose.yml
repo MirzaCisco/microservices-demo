@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:10
+    environment:
+      POSTGRES_DB: demo
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: demo
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  spring-boot-app:
+    build:
+      context: ./spring-boot-app
+      dockerfile: Dockerfile
+    entrypoint: ["sh", "-c", "apt-get update && apt-get install -y curl && exec java -jar /app.jar --spring.config.location=file:/config/application-docker.properties"]
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./application-docker.properties:/config/application-docker.properties:ro
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/demo
+      SPRING_DATASOURCE_USERNAME: demo
+      SPRING_DATASOURCE_PASSWORD: demo
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
+      SPRING_CLOUD_CONFIG_ENABLED: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  node-app:
+    build:
+      context: ./node-app
+      dockerfile: Dockerfile
+    ports:
+      - "8081:3000"
+    environment:
+      SPRING_APP_URL: http://spring-boot-app:8080
+    depends_on:
+      - spring-boot-app
